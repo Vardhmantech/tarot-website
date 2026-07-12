@@ -117,7 +117,8 @@ router.post('/', bookingRateLimit, validate(bookingSchema), async (req, res, nex
     const existingBooking = await Booking.findOne({ 
       date: { $gte: slotStart, $lte: slotEnd },
       time,
-      status: { $ne: 'cancelled' }
+      status: { $ne: 'cancelled' },
+      paymentStatus: { $nin: ['failed'] }
     })
 
     if (existingBooking) {
@@ -261,7 +262,8 @@ router.get('/available-slots/:date', async (req, res, next) => {
 
     const bookedSlots = await Booking.find({
       date: { $gte: startOfDay, $lte: endOfDay },
-      status: { $ne: 'cancelled' }
+      status: { $ne: 'cancelled' },
+      paymentStatus: { $nin: ['failed'] }
     }).select('time').lean()
 
     const bookedTimes = bookedSlots.map(b => b.time)
