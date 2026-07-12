@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import axios from 'axios'
+import api from '../api/axios'
 
 const AdminLogin = ({ onLoginSuccess }) => {
   const [adminKey, setAdminKey] = useState('')
@@ -13,7 +13,7 @@ const AdminLogin = ({ onLoginSuccess }) => {
     setError('')
 
     try {
-      const response = await axios.post('/api/auth/login', {
+      const response = await api.post('/api/auth/login', {
         adminKey
       })
 
@@ -23,7 +23,7 @@ const AdminLogin = ({ onLoginSuccess }) => {
       localStorage.setItem('adminToken', token)
       
       // Set default authorization header for future requests
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`
       
       onLoginSuccess()
       

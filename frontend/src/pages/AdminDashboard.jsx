@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import axios from 'axios'
+import api from '../api/axios'
 import AdminLogin from '../components/AdminLogin'
 import ContentManager from '../components/ContentManager'
 import ServiceManager from '../components/ServiceManager'
@@ -31,12 +31,12 @@ const AdminDashboard = () => {
       return
     }
     try {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
-      await axios.get('/api/auth/verify')
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+      await api.get('/api/auth/verify')
       setIsAuthenticated(true)
     } catch (error) {
       localStorage.removeItem('adminToken')
-      delete axios.defaults.headers.common['Authorization']
+      delete api.defaults.headers.common['Authorization']
     } finally {
       setIsCheckingAuth(false)
     }
@@ -50,14 +50,14 @@ const AdminDashboard = () => {
 
   const handleLogout = () => {
     localStorage.removeItem('adminToken')
-    delete axios.defaults.headers.common['Authorization']
+    delete api.defaults.headers.common['Authorization']
     setIsAuthenticated(false)
   }
 
   const fetchBookings = async () => {
     try {
       setLoading(true)
-      const response = await axios.get('/api/bookings')
+      const response = await api.get('/api/bookings')
       setBookings(response.data.data)
     } catch (err) {
       console.error('Error fetching bookings:', err)
@@ -68,7 +68,7 @@ const AdminDashboard = () => {
 
   const fetchMessages = async () => {
     try {
-      const response = await axios.get('/api/contact')
+      const response = await api.get('/api/contact')
       setMessages(response.data.data)
     } catch (err) {
       console.error('Error fetching messages:', err)
@@ -83,7 +83,7 @@ const AdminDashboard = () => {
     const updatedSelected = updatedBookings.find(b => b._id === bookingId)
     setSelectedBooking(updatedSelected)
     try {
-      await axios.put(`/api/bookings/${bookingId}`, { status: newStatus })
+      await api.put(`/api/bookings/${bookingId}`, { status: newStatus })
     } catch (error) {
       console.error('Error updating booking:', error)
       fetchBookings()
@@ -94,7 +94,7 @@ const AdminDashboard = () => {
     if (!confirm('Permanently delete this booking? This cannot be undone.')) return
     setSelectedBooking(null)
     try {
-      await axios.delete(`/api/bookings/${bookingId}`)
+      await api.delete(`/api/bookings/${bookingId}`)
       setBookings(prev => prev.filter(b => b._id !== bookingId))
     } catch (error) {
       console.error('Error deleting booking:', error)
@@ -104,7 +104,7 @@ const AdminDashboard = () => {
 
   const restoreBooking = async (bookingId) => {
     try {
-      await axios.put(`/api/bookings/${bookingId}`, { status: 'pending' })
+      await api.put(`/api/bookings/${bookingId}`, { status: 'pending' })
       setBookings(prev => prev.map(b => b._id === bookingId ? { ...b, status: 'pending' } : b))
     } catch (error) {
       console.error('Error restoring booking:', error)
@@ -131,7 +131,7 @@ const AdminDashboard = () => {
   const bulkUpdateStatus = async (status) => {
     if (!confirm(`Update ${selectedIds.length} bookings to ${status}?`)) return
     try {
-      await Promise.all(selectedIds.map(id => axios.put(`/api/bookings/${id}`, { status })))
+      await Promise.all(selectedIds.map(id => api.put(`/api/bookings/${id}`, { status })))
       setBookings(prev => prev.map(b => selectedIds.includes(b._id) ? { ...b, status } : b))
       exitSelectionMode()
     } catch (error) {
@@ -143,7 +143,7 @@ const AdminDashboard = () => {
   const bulkDelete = async () => {
     if (!confirm(`Permanently delete ${selectedIds.length} bookings? This cannot be undone.`)) return
     try {
-      await Promise.all(selectedIds.map(id => axios.delete(`/api/bookings/${id}`)))
+      await Promise.all(selectedIds.map(id => api.delete(`/api/bookings/${id}`)))
       setBookings(prev => prev.filter(b => !selectedIds.includes(b._id)))
       exitSelectionMode()
     } catch (error) {
@@ -155,7 +155,7 @@ const AdminDashboard = () => {
   const bulkRestore = async () => {
     if (!confirm(`Restore ${selectedIds.length} bookings?`)) return
     try {
-      await Promise.all(selectedIds.map(id => axios.put(`/api/bookings/${id}`, { status: 'pending' })))
+      await Promise.all(selectedIds.map(id => api.put(`/api/bookings/${id}`, { status: 'pending' })))
       setBookings(prev => prev.map(b => selectedIds.includes(b._id) ? { ...b, status: 'pending' } : b))
       exitSelectionMode()
     } catch (error) {
@@ -172,7 +172,7 @@ const AdminDashboard = () => {
     }
     if (!confirm(`Delete all ${cancelledCount} cancelled bookings permanently?`)) return
     try {
-      await axios.delete('/api/bookings/delete-cancelled')
+      await api.delete('/api/bookings/delete-cancelled')
       setBookings(prev => prev.filter(b => b.status !== 'cancelled'))
     } catch (error) {
       console.error('Error deleting cancelled bookings:', error)
