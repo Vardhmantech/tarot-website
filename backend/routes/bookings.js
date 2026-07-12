@@ -111,8 +111,11 @@ router.post('/', bookingRateLimit, validate(bookingSchema), async (req, res, nex
     }
 
     // Check if time slot is already booked
+    const slotDate = new Date(date)
+    const slotStart = new Date(slotDate); slotStart.setUTCHours(0, 0, 0, 0)
+    const slotEnd = new Date(slotDate); slotEnd.setUTCHours(23, 59, 59, 999)
     const existingBooking = await Booking.findOne({ 
-      date: new Date(date), 
+      date: { $gte: slotStart, $lte: slotEnd },
       time,
       status: { $ne: 'cancelled' }
     })
@@ -251,8 +254,13 @@ router.get('/available-slots/:date', async (req, res, next) => {
       })
     }
 
+    const startOfDay = new Date(requestedDate)
+    startOfDay.setUTCHours(0, 0, 0, 0)
+    const endOfDay = new Date(requestedDate)
+    endOfDay.setUTCHours(23, 59, 59, 999)
+
     const bookedSlots = await Booking.find({
-      date: requestedDate,
+      date: { $gte: startOfDay, $lte: endOfDay },
       status: { $ne: 'cancelled' }
     }).select('time').lean()
 
