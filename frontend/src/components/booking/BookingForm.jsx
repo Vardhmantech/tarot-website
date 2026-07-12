@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import api from '../../api/axios'
 import { handlePaymentFlow } from '../../utils/razorpayHandler'
@@ -381,52 +381,26 @@ Session Type: ${bookingDetails.sessionType}${bookingDetails.paymentId ? `\nPayme
               type="date"
               {...register('date', { required: 'Date required' })}
               min={new Date().toISOString().split('T')[0]}
+              onClick={e => e.target.showPicker?.()}
               className="w-full px-3 py-2.5 bg-cosmic-blue/50 border border-gold/30 rounded-xl text-white text-sm lg:px-4 lg:py-3 lg:text-base"
             />
             {errors.date && <p className="text-red-400 text-xs lg:text-sm mt-1">{errors.date.message}</p>}
           </div>
 
           <div className="relative">
-            <label className="block text-gold text-xs mb-1.5">
-              Time Slot * {slots.length > 0 && `(${slots.length} available)`}
-            </label>
             <select
               {...register('time', { required: 'Time required' })}
               disabled={!selectedDate || loadingSlots}
-              className="w-full px-3 py-2.5 bg-cosmic-blue/50 border-2 border-gold/30 rounded-xl text-white text-base disabled:opacity-50 lg:px-4 lg:py-3 lg:text-base pr-10"
-              style={{ 
-                WebkitAppearance: 'none', 
-                MozAppearance: 'none',
-                fontSize: '16px',
-                minHeight: '48px'
-              }}
+              className="w-full px-3 py-2.5 bg-cosmic-blue/50 border border-gold/30 rounded-xl text-white text-sm disabled:opacity-50 lg:px-4 lg:py-3 lg:text-base"
+              style={{ fontSize: '16px', minHeight: '48px' }}
             >
               <option value="" disabled className="bg-cosmic-blue">
-                {!selectedDate ? 'Select date first' : loadingSlots ? 'Loading...' : 'Tap to select time'}
+                {!selectedDate ? 'Select date first' : loadingSlots ? 'Loading...' : slots.length > 0 ? `Select time (${slots.length})` : 'No slots available'}
               </option>
-              {slots.length > 0 ? (
-                slots.map(time => (
-                  <option key={time} value={time} className="bg-cosmic-blue text-white">
-                    {time}
-                  </option>
-                ))
-              ) : (
-                selectedDate && !loadingSlots && (
-                  <option value="" disabled className="bg-cosmic-blue text-gray-400">
-                    No slots available
-                  </option>
-                )
-              )}
+              {slots.map(time => (
+                <option key={time} value={time} className="bg-cosmic-blue text-white">{time}</option>
+              ))}
             </select>
-            <div className="absolute right-3 bottom-3 pointer-events-none text-gold text-xs">
-              ▼
-            </div>
-            {slots.length === 0 && selectedDate && !loadingSlots && (
-              <p className="text-yellow-400 text-xs mt-1">No time slots available for this date. Try another date.</p>
-            )}
-            {loadingSlots && (
-              <p className="text-aqua text-xs mt-1 animate-pulse">Loading available times...</p>
-            )}
             {errors.time && <p className="text-red-400 text-xs lg:text-sm mt-1">{errors.time.message}</p>}
           </div>
 
