@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
+import axios from 'axios'
 import api from '../api/axios'
 
 const AdminLogin = ({ onLoginSuccess }) => {
@@ -22,8 +23,9 @@ const AdminLogin = ({ onLoginSuccess }) => {
       // Store token in localStorage
       localStorage.setItem('adminToken', token)
       
-      // Set default authorization header for future requests
+      // Set default authorization header for both axios instances
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
       
       onLoginSuccess()
       

@@ -3,441 +3,207 @@ import Razorpay from 'razorpay'
 import crypto from 'crypto'
 import { body, validationResult } from 'express-validator'
 import rateLimit from 'express-rate-limit'
-import Booking from '../models/Booking.js'
-import Pricing from '../models/Pricing.js'
-import { sendBookingConfirmation, sendPaymentFailure } from '../utils/whatsappService.js'
+import { getPool } from '../config/database.js'
+import { getServicePrice } from '../utils/pricing.js'
 
 const router = express.Router()
 
-// Rate limiter for payment routes
 const paymentLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // 10 requests per window
-  message: {
-    success: false,
-    message: 'Too many payment attempts, please try again later'
-  },
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { success: false, message: 'Too many payment attempts, please try again later' },
   standardHeaders: true,
   legacyHeaders: false,
 })
 
-// Initialize Razorpay instance
 const getRazorpayInstance = () => {
   if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
     throw new Error('Razorpay credentials not configured')
   }
-  
-  return new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET
-  })
+  return new Razorpay({ key_id: process.env.RAZORPAY_KEY_ID, key_secret: process.env.RAZORPAY_KEY_SECRET })
 }
 
-// Service prices in paise (multiply by 100)
-const getServicePrice = async (service) => {
-  const pricing = await Pricing.findOne({ service })
-  if (pricing) {
-    return pricing.currentPrice
-  }
-  // Fallback
-  const servicePrices = {
-    'tarot': 110000,
-    'reiki': 155100,
-    'water-divination': 2100000,
-    'spiritual-consultation': 250000
-  }
-  return servicePrices[service] || 0
-}
-
-// Validation middleware for create order
 const validateCreateOrder = [
-  body('service')
-    .notEmpty()
-    .withMessage('Service is required')
-    .custom(async (value) => {
-      const validServices = ['tarot', 'reiki', 'water-divination', 'spiritual-consultation']
-      if (!validServices.includes(value)) {
-        throw new Error('Invalid service selected')
-      }
-      return true
-    }),
-  body('bookingId')
-    .optional()
-    .isMongoId()
-    .withMessage('Invalid booking ID format'),
-  body('customerDetails')
-    .optional()
-    .isObject()
-    .withMessage('Customer details must be an object'),
-  body('customerDetails.name')
-    .optional()
-    .trim()
-    .isLength({ min: 2, max: 100 })
-    .withMessage('Name must be between 2 and 100 characters'),
-  body('customerDetails.email')
-    .optional()
-    .isEmail()
-    .normalizeEmail()
-    .withMessage('Invalid email address'),
-  body('customerDetails.phone')
-    .optional()
-    .matches(/^[6-9]\d{9}$/)
-    .withMessage('Invalid Indian phone number')
+  body('service').notEmpty().withMessage('Service is required').custom(async (value) => {
+    const validServices = ['tarot', 'reiki', 'water-divination', 'spiritual-consultation'];
+    if (!validServices.includes(value)) throw new Error('Invalid service selected');
+    return true;
+  }),
+  body('bookingId').optional().isInt().withMessage('Invalid booking ID format'),
+  body('customerDetails').optional().isObject().withMessage('Customer details must be an object'),
+  body('customerDetails.name').optional().trim().isLength({ min: 2, max: 100 }).withMessage('Name must be between 2 and 100 characters'),
+  body('customerDetails.email').optional().isEmail().normalizeEmail().withMessage('Invalid email address'),
+  body('customerDetails.phone').optional().matches(/^[6-9]\d{9}$/).withMessage('Invalid Indian phone number')
 ]
 
-// Validation middleware for verify payment
 const validateVerifyPayment = [
-  body('razorpay_order_id')
-    .notEmpty()
-    .withMessage('Order ID is required'),
-  body('razorpay_payment_id')
-    .notEmpty()
-    .withMessage('Payment ID is required'),
-  body('razorpay_signature')
-    .notEmpty()
-    .withMessage('Signature is required'),
-  body('bookingId')
-    .optional()
-    .isMongoId()
-    .withMessage('Invalid booking ID format')
+  body('razorpay_order_id').notEmpty().withMessage('Order ID is required'),
+  body('razorpay_payment_id').notEmpty().withMessage('Payment ID is required'),
+  body('razorpay_signature').notEmpty().withMessage('Signature is required'),
+  body('bookingId').optional().isInt().withMessage('Invalid booking ID format')
 ]
 
-// @desc    Create Razorpay order
-// @route   POST /api/payments/create-order
-// @access  Public (add protect middleware for authenticated routes)
 router.post('/create-order', paymentLimiter, validateCreateOrder, async (req, res, next) => {
   try {
-    // Validate request
-    const errors = validationResult(req)
+    const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        errors: errors.array()
-      })
+      return res.status(400).json({ success: false, message: 'Validation failed', errors: errors.array() });
     }
 
-    const { service, bookingId, customerDetails } = req.body
+    const pool = getPool();
+    const { service, bookingId, customerDetails } = req.body;
+    const amount = await getServicePrice(service);
 
-    // Get amount for the service
-    const amount = await getServicePrice(service)
-    
-    // If bookingId is provided, verify it exists and is not already paid
     if (bookingId) {
-      const booking = await Booking.findById(bookingId)
-      
-      if (!booking) {
-        return res.status(404).json({
-          success: false,
-          message: 'Booking not found'
-        })
-      }
-
-      if (booking.paymentStatus === 'completed') {
-        return res.status(400).json({
-          success: false,
-          message: 'Payment already completed for this booking'
-        })
-      }
-
-      // Update booking to pending
-      booking.paymentStatus = 'pending'
-      await booking.save()
+      const [rows] = await pool.execute('SELECT * FROM bookings WHERE id = ?', [bookingId]);
+      if (rows.length === 0) return res.status(404).json({ success: false, message: 'Booking not found' });
+      if (rows[0].payment_status === 'completed') return res.status(400).json({ success: false, message: 'Payment already completed for this booking' });
+      await pool.execute('UPDATE bookings SET payment_status = ? WHERE id = ?', ['pending', bookingId]);
     }
-    
+
     try {
-      const razorpay = getRazorpayInstance()
-      
+      const razorpay = getRazorpayInstance();
       const options = {
-        amount, // Amount in paise
+        amount,
         currency: 'INR',
         receipt: `receipt_${bookingId || Date.now()}`,
-        notes: {
-          service,
-          bookingId: bookingId || '',
-          serviceName: service.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-        }
-      }
-
-      console.log('Creating Razorpay order with options:', options)
-      const order = await razorpay.orders.create(options)
-      console.log('✅ Razorpay order created successfully:', order.id)
-
-      // Return order details with key_id for frontend
+        notes: { service, bookingId: bookingId || '', serviceName: service.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) }
+      };
+      const order = await razorpay.orders.create(options);
       res.status(200).json({
         success: true,
-        data: {
-          orderId: order.id,
-          amount: order.amount,
-          currency: order.currency,
-          keyId: process.env.RAZORPAY_KEY_ID, // Public key - safe to expose
-          // Additional data for Razorpay checkout options
-          prefill: customerDetails || {},
-          notes: options.notes
-        }
-      })
+        data: { orderId: order.id, amount: order.amount, currency: order.currency, keyId: process.env.RAZORPAY_KEY_ID, prefill: customerDetails || {}, notes: options.notes }
+      });
     } catch (razorpayError) {
-      console.error('❌ Razorpay API error:', {
-        message: razorpayError.message,
-        statusCode: razorpayError.statusCode,
-        error: razorpayError.error
-      })
-      
-      // Revert booking status if it was updated
-      if (bookingId) {
-        await Booking.findByIdAndUpdate(bookingId, {
-          paymentStatus: 'failed'
-        })
-      }
-
+      if (bookingId) await pool.execute('UPDATE bookings SET payment_status = ? WHERE id = ?', ['failed', bookingId]);
       return res.status(500).json({
         success: false,
         message: 'Unable to create payment order. Please try again.',
-        ...(process.env.NODE_ENV === 'development' && { 
-          details: razorpayError.message 
-        })
-      })
+        ...(process.env.NODE_ENV === 'development' && { details: razorpayError.message })
+      });
     }
-
   } catch (error) {
-    console.error('❌ Payment order creation error:', error)
-    next(error)
+    next(error);
   }
 })
 
-// @desc    Verify payment signature
-// @route   POST /api/payments/verify
-// @access  Public
 router.post('/verify', paymentLimiter, validateVerifyPayment, async (req, res, next) => {
   try {
-    // Validate request
-    const errors = validationResult(req)
+    const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        errors: errors.array()
-      })
+      return res.status(400).json({ success: false, message: 'Validation failed', errors: errors.array() });
     }
 
-    const { 
-      razorpay_order_id, 
-      razorpay_payment_id, 
-      razorpay_signature, 
-      bookingId 
-    } = req.body
+    const pool = getPool();
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, bookingId } = req.body;
 
-    // Verify signature
-    const body = razorpay_order_id + "|" + razorpay_payment_id
-    const expectedSignature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-      .update(body.toString())
-      .digest('hex')
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
+    const expectedSignature = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET).update(body.toString()).digest('hex');
 
-    const isSignatureValid = expectedSignature === razorpay_signature
-
-    if (!isSignatureValid) {
-      console.error('❌ Payment signature verification failed')
-      
-      // Update booking status to failed
-      if (bookingId) {
-        await Booking.findByIdAndUpdate(bookingId, {
-          paymentStatus: 'failed'
-        })
-      }
-
-      return res.status(400).json({
-        success: false,
-        message: 'Payment verification failed. Invalid signature.'
-      })
+    if (expectedSignature !== razorpay_signature) {
+      if (bookingId) await pool.execute('UPDATE bookings SET payment_status = ? WHERE id = ?', ['failed', bookingId]);
+      return res.status(400).json({ success: false, message: 'Payment verification failed. Invalid signature.' });
     }
 
-    console.log('✅ Payment signature verified successfully')
-
-    // Update booking with payment details
-    let updatedBooking = null
+    let updatedBooking = null;
     if (bookingId) {
-      const booking = await Booking.findById(bookingId)
-      
-      if (!booking) {
-        return res.status(404).json({
-          success: false,
-          message: 'Booking not found'
-        })
+      const [rows] = await pool.execute('SELECT * FROM bookings WHERE id = ?', [bookingId]);
+      if (rows.length === 0) return res.status(404).json({ success: false, message: 'Booking not found' });
+      const booking = rows[0];
+      if (booking.payment_status === 'completed' && booking.payment_id) {
+        return res.status(200).json({ success: true, message: 'Payment already verified', data: { paymentId: booking.payment_id, orderId: booking.order_id, bookingId: booking.id } });
       }
+      await pool.execute(
+        'UPDATE bookings SET payment_status = ?, payment_id = ?, order_id = ?, paid_at = NOW() WHERE id = ?',
+        ['completed', razorpay_payment_id, razorpay_order_id, bookingId]
+      );
+      const [updated] = await pool.execute('SELECT * FROM bookings WHERE id = ?', [bookingId]);
+      updatedBooking = updated[0];
 
-      // Prevent duplicate payment processing
-      if (booking.paymentStatus === 'completed' && booking.paymentId) {
-        return res.status(200).json({
-          success: true,
-          message: 'Payment already verified',
-          data: {
-            paymentId: booking.paymentId,
-            orderId: booking.orderId,
-            bookingId: booking._id
-          }
-        })
-      }
-
-      booking.paymentStatus = 'completed'
-      booking.paymentId = razorpay_payment_id
-      booking.orderId = razorpay_order_id
-      booking.paidAt = new Date()
-      updatedBooking = await booking.save()
-
-      console.log('✅ Booking updated with payment details:', bookingId)
-      
-      // Send WhatsApp confirmation
       try {
-        await sendBookingConfirmation(booking)
-      } catch (whatsappError) {
-        console.error('⚠️ WhatsApp notification failed:', whatsappError.message)
-        // Don't fail the payment if WhatsApp fails
-      }
+        const { sendBookingConfirmation } = await import('../utils/whatsappService.js');
+        await sendBookingConfirmation(updatedBooking);
+      } catch (whatsappError) {}
     }
 
     res.status(200).json({
       success: true,
       message: 'Payment verified successfully',
-      data: {
-        paymentId: razorpay_payment_id,
-        orderId: razorpay_order_id,
-        bookingId: updatedBooking?._id || null
-      }
-    })
-
+      data: { paymentId: razorpay_payment_id, orderId: razorpay_order_id, bookingId: updatedBooking?.id || null }
+    });
   } catch (error) {
-    console.error('❌ Payment verification error:', error)
-    
-    // Update booking to failed on error
     if (req.body.bookingId) {
       try {
-        await Booking.findByIdAndUpdate(req.body.bookingId, {
-          paymentStatus: 'failed'
-        })
-      } catch (updateError) {
-        console.error('Failed to update booking status:', updateError)
-      }
+        const pool = getPool();
+        await pool.execute('UPDATE bookings SET payment_status = ? WHERE id = ?', ['failed', req.body.bookingId]);
+      } catch (updateError) {}
     }
-    
-    next(error)
+    next(error);
   }
 })
 
-// @desc    Handle payment failure
-// @route   POST /api/payments/failure
-// @access  Public
-router.post('/failure', async (req, res, next) => {
+router.post('/failure', paymentLimiter, async (req, res, next) => {
   try {
-    const { orderId, bookingId, error } = req.body
-
-    console.log('❌ Payment failed:', { orderId, bookingId, error })
-
-    // Update booking status to failed
+    const pool = getPool();
+    const { orderId, bookingId, error } = req.body;
     if (bookingId) {
-      const booking = await Booking.findByIdAndUpdate(bookingId, {
-        paymentStatus: 'failed',
-        orderId: orderId || null,
-        failureReason: error?.description || 'Payment failed'
-      }, { new: true })
-      
-      // Send WhatsApp notification
-      if (booking) {
+      await pool.execute(
+        'UPDATE bookings SET payment_status = ?, order_id = ?, failure_reason = ? WHERE id = ? AND payment_status != ?',
+        ['failed', orderId || null, error?.description || 'Payment failed', bookingId, 'completed']
+      );
+      const [rows] = await pool.execute('SELECT * FROM bookings WHERE id = ?', [bookingId]);
+      if (rows.length > 0) {
         try {
-          await sendPaymentFailure(booking)
-        } catch (whatsappError) {
-          console.error('⚠️ WhatsApp notification failed:', whatsappError.message)
-        }
+          const { sendPaymentFailure } = await import('../utils/whatsappService.js');
+          await sendPaymentFailure(rows[0]);
+        } catch (whatsappError) {}
       }
     }
-
-    res.status(200).json({
-      success: false,
-      message: error?.description || 'Payment failed. Please try again.'
-    })
-
+    res.status(200).json({ success: false, message: error?.description || 'Payment failed. Please try again.' });
   } catch (error) {
-    console.error('❌ Payment failure handler error:', error)
-    next(error)
+    next(error);
   }
 })
 
-// @desc    Razorpay webhook handler
-// @route   POST /api/payments/webhook
-// @access  Public (verified via signature)
 router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
-  const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET
+  const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+  if (!webhookSecret) return res.status(500).json({ error: 'Webhook not configured' });
 
-  if (!webhookSecret) {
-    console.error('❌ Webhook secret not configured')
-    return res.status(500).json({ error: 'Webhook not configured' })
-  }
-
-  const signature = req.headers['x-razorpay-signature']
-
+  const signature = req.headers['x-razorpay-signature'];
   try {
-    // Verify webhook signature
-    const expectedSignature = crypto
-      .createHmac('sha256', webhookSecret)
-      .update(JSON.stringify(req.body))
-      .digest('hex')
+    // Razorpay signs the exact raw payload. express.raw() gives us a Buffer,
+    // so never JSON.stringify it before calculating the HMAC.
+    const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from(JSON.stringify(req.body));
+    const expectedSignature = crypto.createHmac('sha256', webhookSecret).update(rawBody).digest('hex');
+    if (expectedSignature !== signature) return res.status(400).json({ error: 'Invalid signature' });
 
-    if (expectedSignature !== signature) {
-      console.error('❌ Invalid webhook signature')
-      return res.status(400).json({ error: 'Invalid signature' })
-    }
+    const payload = JSON.parse(rawBody.toString('utf8'));
+    const pool = getPool();
+    const event = payload.event;
+    const paymentEntity = payload.payload.payment.entity;
 
-    const event = req.body.event
-    const paymentEntity = req.body.payload.payment.entity
-
-    console.log('📥 Webhook received:', event)
-
-    // Handle different events
     switch (event) {
       case 'payment.captured':
-        await Booking.findOneAndUpdate(
-          { orderId: paymentEntity.order_id },
-          { 
-            paymentStatus: 'completed',
-            paymentId: paymentEntity.id,
-            paidAt: new Date()
-          }
-        )
-        console.log('✅ Payment captured via webhook:', paymentEntity.id)
-        break
-
+        await pool.execute(
+          'UPDATE bookings SET payment_status = ?, payment_id = ?, paid_at = NOW() WHERE order_id = ?',
+          ['completed', paymentEntity.id, paymentEntity.order_id]
+        );
+        break;
       case 'payment.failed':
-        await Booking.findOneAndUpdate(
-          { orderId: paymentEntity.order_id },
-          { 
-            paymentStatus: 'failed',
-            failureReason: paymentEntity.error_description
-          }
-        )
-        console.log('❌ Payment failed via webhook:', paymentEntity.id)
-        break
-
-      default:
-        console.log('ℹ️ Unhandled webhook event:', event)
+        await pool.execute(
+          'UPDATE bookings SET payment_status = ?, failure_reason = ? WHERE order_id = ?',
+          ['failed', paymentEntity.error_description, paymentEntity.order_id]
+        );
+        break;
     }
-
-    res.json({ status: 'ok' })
+    res.json({ status: 'ok' });
   } catch (error) {
-    console.error('❌ Webhook processing error:', error)
-    res.status(500).json({ error: 'Webhook processing failed' })
+    res.status(500).json({ error: 'Webhook processing failed' });
   }
 })
 
-// @desc    Get Razorpay key (for frontend initialization)
-// @route   GET /api/payments/config
-// @access  Public
 router.get('/config', (req, res) => {
-  res.json({
-    success: true,
-    data: {
-      keyId: process.env.RAZORPAY_KEY_ID
-    }
-  })
+  res.json({ success: true, data: { keyId: process.env.RAZORPAY_KEY_ID } });
 })
 
 export default router

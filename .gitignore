@@ -1,5 +1,8 @@
 # Dependencies
 node_modules/
+
+# Local deployment archives
+backend.zip
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

@@ -1,46 +1,31 @@
-import ServicePricing from '../models/ServicePricing.js';
+import { getPool } from '../config/database.js';
 
-// Check and reset expired special events
 export const resetExpiredSpecialEvents = async () => {
   try {
-    const now = new Date();
-    
-    // Find all services with expired special events
-    const expiredServices = await ServicePricing.find({
-      specialEvent: { $ne: null },
-      validUntil: { $lte: now }
-    });
+    const pool = getPool();
+    const [expired] = await pool.execute(
+      `SELECT * FROM service_pricings WHERE special_event IS NOT NULL AND valid_until <= NOW()`
+    );
 
-    if (expiredServices.length === 0) {
-      return;
-    }
+    if (expired.length === 0) return;
 
-    // Reset each expired service
-    for (const service of expiredServices) {
-      if (service.originalPrice) {
-        service.price = service.originalPrice;
-      }
-      service.originalPrice = null;
-      service.specialEvent = null;
-      service.validUntil = null;
-      await service.save();
-      
+    for (const service of expired) {
+      const newPrice = service.original_price || service.price;
+      await pool.execute(
+        'UPDATE service_pricings SET price = ?, original_price = NULL, special_event = NULL, valid_until = NULL WHERE id = ?',
+        [newPrice, service.id]
+      );
       console.log(`✅ Reset expired special event for ${service.name}`);
     }
 
-    console.log(`🔄 Reset ${expiredServices.length} expired special events`);
+    console.log(`🔄 Reset ${expired.length} expired special events`);
   } catch (error) {
     console.error('❌ Error resetting expired special events:', error);
   }
 };
 
-// Run every 5 minutes
 export const startSpecialEventCron = () => {
-  // Run immediately on startup
   resetExpiredSpecialEvents();
-  
-  // Then run every 5 minutes
   setInterval(resetExpiredSpecialEvents, 5 * 60 * 1000);
-  
   console.log('⏰ Special event cron job started (runs every 5 minutes)');
 };

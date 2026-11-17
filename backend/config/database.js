@@ -1,28 +1,41 @@
-import mongoose from "mongoose";
+import mysql from 'mysql2/promise';
+
+let pool;
 
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI, {
-      maxPoolSize: 10,
-      serverSelectionTimeoutMS: 5000,
-      socketTimeoutMS: 45000
+    pool = mysql.createPool({
+      host: process.env.DB_HOST || 'localhost',
+      user: process.env.DB_USER || 'root',
+      password: process.env.DB_PASSWORD || '',
+      database: process.env.DB_NAME || 'tarot_website',
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0,
+      charset: 'utf8mb4',
+      // Return DATE columns as `YYYY-MM-DD` instead of timezone-shifted Date objects.
+      dateStrings: ['DATE']
     });
-    
-    console.log(`🍃 MongoDB Connected: ${conn.connection.host}`);
-    
-    // Handle connection events
-    mongoose.connection.on('error', (err) => {
-      console.error('❌ MongoDB connection error:', err);
+
+    const connection = await pool.getConnection();
+    console.log(`🍃 MySQL Connected: ${connection.config.host}`);
+    connection.release();
+
+    pool.on('connection', (conn) => {
+      conn.on('error', (err) => {
+        console.error('❌ MySQL connection error:', err);
+      });
     });
-    
-    mongoose.connection.on('disconnected', () => {
-      console.log('⚠️ MongoDB disconnected');
-    });
-    
+
   } catch (error) {
     console.error("❌ Database connection error:", error.message);
     process.exit(1);
   }
+};
+
+export const getPool = () => {
+  if (!pool) throw new Error('Database not connected. Call connectDB first.');
+  return pool;
 };
 
 export default connectDB;

@@ -56,7 +56,10 @@
     <div id="results"></div>
 
     <script>
-        const API_BASE_URL = 'http://localhost:5000'
+        // Same origin when served by Express; localhost when opened as a file.
+        const API_BASE_URL = window.location.protocol === 'file:'
+            ? 'http://localhost:5000'
+            : window.location.origin
         let currentOrder = null
 
         function addResult(message, type = 'info') {

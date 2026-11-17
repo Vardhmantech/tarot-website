@@ -41,7 +41,7 @@ A modern, full-stack website for spiritual services including Tarot Reading, Rei
 
 ### Backend
 - **Node.js** with Express.js
-- **MongoDB** with Mongoose ODM
+- **MySQL** with mysql2
 - **Razorpay SDK** for payments
 - **Express Validator** for validation
 - **Rate Limiting** and security middleware
@@ -50,9 +50,11 @@ A modern, full-stack website for spiritual services including Tarot Reading, Rei
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 16+
-- MongoDB
+- Node.js 20+
+- MySQL 8+
 - Razorpay account (test mode)
+
+> Deploying to Hostinger? See [HOSTINGER_DEPLOYMENT.md](HOSTINGER_DEPLOYMENT.md) for the single-domain setup.
 
 ### 1. Clone and Setup
 ```bash
@@ -70,22 +72,22 @@ chmod +x setup.sh
 
 ### 2. Configure Razorpay
 1. Get your keys from [Razorpay Dashboard](https://dashboard.razorpay.com/app/keys)
-2. Update `backend/.env`:
-```env
-RAZORPAY_KEY_ID=rzp_test_your_key_here
-RAZORPAY_KEY_SECRET=your_secret_here
-```
+2. Copy `backend/.env.example` to `backend/.env` and fill in your MySQL details and Razorpay keys.
 
 ### 3. Start Services
 ```bash
-# Terminal 1 - Backend
+# Create the MySQL tables
 cd backend
-npm run dev
+npm run db:create
+cd ..
 
-# Terminal 2 - Frontend
-cd frontend
-npm start
+# Run backend and frontend together
+npm run dev
+# Frontend: http://localhost:5174
+# Backend:  http://localhost:5000
 ```
+
+You can also run them separately with `npm run dev:backend` and `npm run dev:frontend`.
 
 ### 4. Test Integration
 Open `razorpay-test.html` in your browser to test the payment flow.
@@ -113,17 +115,24 @@ tarot-website/
 │   ├── .env                          # Frontend environment
 │   └── package.json
 ├── backend/
+│   ├── config/
+│   │   └── database.js               # MySQL connection pool
 │   ├── routes/
 │   │   ├── payments.js               # Enhanced payment routes
 │   │   ├── bookings.js
 │   │   └── ...
-│   ├── models/
-│   │   ├── Booking.js
-│   │   └── ...
+│   ├── scripts/
+│   │   ├── createTables.js           # Creates missing tables
+│   │   ├── schema.sql                # phpMyAdmin import
+│   │   └── seed*.js                  # Seed scripts
+│   ├── utils/
+│   │   ├── pricing.js                # Authoritative pricing
+│   │   └── serialize.js              # MySQL -> camelCase responses
 │   ├── .env                          # Backend environment
-│   └── server.js                     # Enhanced server config
+│   └── server.js                     # Express server + frontend hosting
 ├── razorpay-test.html                # Payment testing tool
 ├── setup.bat / setup.sh              # Setup scripts
+├── HOSTINGER_DEPLOYMENT.md           # Deployment guide
 └── README.md
 ```
 
@@ -159,12 +168,17 @@ tarot-website/
 **Backend (.env)**
 ```env
 PORT=5000
-MONGO_URI=mongodb://127.0.0.1:27017/tarot-website
 NODE_ENV=development
+DB_HOST=127.0.0.1
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=tarot_website
+FRONTEND_URL=http://localhost:5174
 
 # Razorpay
 RAZORPAY_KEY_ID=rzp_test_your_key_here
 RAZORPAY_KEY_SECRET=your_secret_here
+RAZORPAY_WEBHOOK_SECRET=your_webhook_secret_here
 
 # Admin
 ADMIN_KEY=your_admin_key
@@ -173,9 +187,10 @@ JWT_SECRET=your_jwt_secret
 
 **Frontend (.env)**
 ```env
-REACT_APP_API_URL=http://localhost:5000
-REACT_APP_RAZORPAY_KEY_ID=rzp_test_your_key_here
-REACT_APP_NAME=Krushnalaya
+# Empty = same origin (Vite proxies /api in development)
+VITE_API_URL=
+VITE_RAZORPAY_KEY_ID=rzp_test_your_key_here
+VITE_APP_NAME=Krushnalaya
 ```
 
 ## 🛡️ Security Features
@@ -183,7 +198,7 @@ REACT_APP_NAME=Krushnalaya
 - **Rate Limiting**: 100 requests per 15 minutes
 - **Input Validation**: Express Validator with sanitization
 - **XSS Protection**: Custom XSS filtering
-- **NoSQL Injection**: Mongoose sanitization
+- **SQL Injection Protection**: Parameterized mysql2 queries
 - **CORS**: Configured for specific origins
 - **Helmet**: Security headers
 - **Payment Security**: Signature verification
@@ -210,14 +225,16 @@ REACT_APP_NAME=Krushnalaya
 
 ## 🚀 Production Deployment
 
+See [HOSTINGER_DEPLOYMENT.md](HOSTINGER_DEPLOYMENT.md) for the complete single-domain Hostinger setup.
+
 ### Before Going Live
 1. Switch to live Razorpay keys
 2. Set `NODE_ENV=production`
-3. Configure webhook URL in Razorpay dashboard
-4. Update CORS origins
-5. Set up SSL certificate
-6. Configure MongoDB Atlas
-7. Set up monitoring and logging
+3. Configure the webhook URL in the Razorpay dashboard
+4. Generate strong `ADMIN_KEY` and `JWT_SECRET` values
+5. Create the MySQL database and tables
+6. Point `FRONTEND_URL` and `APP_URL` at your real domain
+7. Confirm `/api/health`, `/`, and `/admin` work after deployment
 
 ### Deployment Checklist
 - [ ] Environment variables configured

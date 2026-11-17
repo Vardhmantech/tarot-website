@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import axios from 'axios'
 import api from '../api/axios'
 import AdminLogin from '../components/AdminLogin'
 import ContentManager from '../components/ContentManager'
@@ -32,11 +33,13 @@ const AdminDashboard = () => {
     }
     try {
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
       await api.get('/api/auth/verify')
       setIsAuthenticated(true)
     } catch (error) {
       localStorage.removeItem('adminToken')
       delete api.defaults.headers.common['Authorization']
+      delete axios.defaults.headers.common['Authorization']
     } finally {
       setIsCheckingAuth(false)
     }
@@ -51,6 +54,7 @@ const AdminDashboard = () => {
   const handleLogout = () => {
     localStorage.removeItem('adminToken')
     delete api.defaults.headers.common['Authorization']
+    delete axios.defaults.headers.common['Authorization']
     setIsAuthenticated(false)
   }
 

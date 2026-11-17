@@ -7,10 +7,13 @@ echo 🔮 Setting up Krushnalaya Website...
 REM Check if Node.js is installed
 node --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo ❌ Node.js is not installed. Please install Node.js 16+ first.
+    echo ❌ Node.js is not installed. Please install Node.js 20+ first.
     pause
     exit /b 1
 )
+
+echo ℹ️  Installing root dependencies...
+call npm install
 
 echo ℹ️  Setting up backend...
 
@@ -50,10 +53,10 @@ if not exist ".env" (
     echo ℹ️  Creating frontend .env file...
     (
         echo # Frontend Environment Variables
-        echo REACT_APP_API_URL=http://localhost:5000
-        echo REACT_APP_RAZORPAY_KEY_ID=rzp_test_SC3qTps7PScZWH
-        echo REACT_APP_NAME=Krushnalaya
-        echo REACT_APP_DESCRIPTION=Spiritual Services - Tarot, Reiki ^& Water Divination
+        echo VITE_API_URL=
+        echo VITE_RAZORPAY_KEY_ID=rzp_test_your_key_here
+        echo VITE_APP_NAME=Krushnalaya
+        echo VITE_APP_DESCRIPTION=Spiritual Services - Tarot, Reiki ^& Water Divination
         echo GENERATE_SOURCEMAP=false
     ) > .env
     echo ✅ Frontend .env file created
@@ -68,14 +71,14 @@ echo.
 echo 🎉 Krushnalaya Website is ready!
 echo.
 echo 📋 Next steps:
-echo 1. Update backend\.env with your Razorpay credentials
-echo 2. Start MongoDB service
-echo 3. Start backend: cd backend ^&^& npm run dev
-echo 4. Start frontend: cd frontend ^&^& npm start
+echo 1. Update backend\.env with your MySQL and Razorpay credentials
+echo 2. Create the database tables: cd backend ^&^& npm run db:create
+echo 3. Start both apps: npm run dev
+echo 4. Open the frontend: http://localhost:5174
 echo 5. Test integration: open razorpay-test.html in browser
 echo.
 echo 🔗 URLs:
-echo    Frontend: http://localhost:3000
+echo    Frontend: http://localhost:5174
 echo    Backend:  http://localhost:5000
 echo    Test:     %cd%\razorpay-test.html
 echo.

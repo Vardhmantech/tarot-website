@@ -2,14 +2,15 @@
   "name": "mystic-guidance-website",
   "version": "1.0.0",
   "description": "Modern website for Tarot Reader, Reiki Healer, and Water Diviner",
-  "main": "index.js",
+  "main": "backend/server.js",
   "scripts": {
     "install-all": "npm install && cd frontend && npm install && cd ../backend && npm install",
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run dev",
-    "build": "cd frontend && npm install && npm run build",
-    "start": "cd backend && npm start",
+    "build": "cd backend && npm install --omit=dev && cd ../frontend && npm install --include=dev && npm run build",
+    "build:frontend": "cd frontend && npm install --include=dev && npm run build",
+    "start": "node backend/server.js",
     "setup": "node setup.js"
   },
   "keywords": [
@@ -20,14 +21,15 @@
     "booking",
     "react",
     "nodejs",
-    "mongodb"
+    "mysql"
   ],
   "author": "Mystic Guidance",
   "license": "MIT",
+  "private": true,
   "devDependencies": {
     "concurrently": "^8.2.2"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=20.0.0 <25"
   }
 }

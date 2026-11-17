@@ -1,50 +1,34 @@
 export const errorHandler = (err, req, res, next) => {
-  let error = { ...err }
-  error.message = err.message
+  let error = { ...err };
+  error.message = err.message;
 
-  // Log error for debugging (only in development)
   if (process.env.NODE_ENV === 'development') {
-    console.error('❌ Error:', err)
+    console.error('❌ Error:', err);
   }
 
-  // Mongoose bad ObjectId
-  if (err.name === 'CastError') {
-    const message = 'Resource not found'
-    error = { message, statusCode: 404 }
-  }
-
-  // Mongoose duplicate key
-  if (err.code === 11000) {
-    let message = 'Duplicate field value entered'
-    
-    // Check if it's a booking conflict
-    if (err.keyPattern && err.keyPattern.date && err.keyPattern.time) {
-      message = 'This time slot is already booked. Please choose a different time.'
+  if (err.code === 'ER_DUP_ENTRY') {
+    let message = 'Duplicate field value entered';
+    if (err.message && err.message.includes('booking_number')) {
+      message = 'Booking number already exists';
     }
-    
-    error = { message, statusCode: 400 }
+    error = { message, statusCode: 400 };
   }
 
-  // Mongoose validation error
-  if (err.name === 'ValidationError') {
-    const message = Object.values(err.errors).map(val => val.message).join(', ')
-    error = { message, statusCode: 400 }
+  if (err.code === 'ER_NO_REFERENCED_ROW_2') {
+    error = { message: 'Referenced record not found', statusCode: 400 };
   }
 
-  // JWT errors
   if (err.name === 'JsonWebTokenError') {
-    const message = 'Invalid token'
-    error = { message, statusCode: 401 }
+    error = { message: 'Invalid token', statusCode: 401 };
   }
 
   if (err.name === 'TokenExpiredError') {
-    const message = 'Token expired'
-    error = { message, statusCode: 401 }
+    error = { message: 'Token expired', statusCode: 401 };
   }
 
   res.status(error.statusCode || 500).json({
     success: false,
     message: error.message || 'Server Error',
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-  })
-}
+  });
+};

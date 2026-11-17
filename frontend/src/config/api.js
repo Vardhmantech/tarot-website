@@ -1,9 +1,8 @@
 // API Configuration
 // File: frontend/src/config/api.js
 
-export const API_BASE_URL = import.meta.env.MODE === 'production' 
-  ? import.meta.env.VITE_API_URL || 'https://your-domain.com'
-  : import.meta.env.VITE_API_URL || 'http://localhost:5000'
+// Empty base URL = same origin. Vite's dev proxy handles /api locally.
+export const API_BASE_URL = import.meta.env.VITE_API_URL?.trim() || ''
 
 export const API_ENDPOINTS = {
   // Booking endpoints
