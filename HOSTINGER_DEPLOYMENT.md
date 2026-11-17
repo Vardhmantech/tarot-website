@@ -163,6 +163,10 @@ Do not edit files inside `public_html` or `hbuilds/` manually; they are replaced
 
 ## Troubleshooting
 
+**`ERR_REQUIRE_ASYNC_MODULE`**
+- Hostinger's LiteSpeed Node launcher loads the entry file with `require()`, which cannot load an ES module that uses top-level `await`.
+- `backend/server.js` avoids top-level await by starting the database connection inside `start()`. Do not add top-level `await` to the entry file or anything it imports.
+
 **Database access denied**
 - Check `DB_HOST=localhost` when the app and database are on the same Hostinger server.
 - Check the prefixed database/user names shown in hPanel.

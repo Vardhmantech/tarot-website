@@ -26,8 +26,6 @@ const __dirname = path.dirname(__filename);
 // Load backend/.env regardless of the directory the process was started from.
 dotenv.config({ path: path.join(__dirname, ".env") });
 
-await connectDB();
-
 const app = express();
 const PORT = process.env.PORT || 5000;
 const frontendDist = path.resolve(__dirname, "..", "frontend", "dist");
@@ -214,29 +212,38 @@ process.on("SIGINT", () => {
   process.exit(0);
 });
 
-if (process.env.USE_HTTPS === "true") {
-  try {
-    const httpsOptions = {
-      key: fs.readFileSync("./key.pem"),
-      cert: fs.readFileSync("./cert.pem")
-    };
-    https.createServer(httpsOptions, app).listen(PORT, () => {
-      console.log(`🔮 HTTPS Server running on port ${PORT}`);
-      console.log(`🔒 URL: https://localhost:${PORT}`);
+const start = async () => {
+  await connectDB();
+
+  if (process.env.USE_HTTPS === "true") {
+    try {
+      const httpsOptions = {
+        key: fs.readFileSync("./key.pem"),
+        cert: fs.readFileSync("./cert.pem")
+      };
+      https.createServer(httpsOptions, app).listen(PORT, () => {
+        console.log(`🔮 HTTPS Server running on port ${PORT}`);
+        console.log(`🔒 URL: https://localhost:${PORT}`);
+        console.log(`✨ Environment: ${process.env.NODE_ENV}`);
+      });
+    } catch (error) {
+      console.error("❌ HTTPS setup failed:", error.message);
+      process.exit(1);
+    }
+  } else {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`🔮 Server running on port ${PORT}`);
       console.log(`✨ Environment: ${process.env.NODE_ENV}`);
+      console.log(`🖥️  Frontend: ${hasFrontendBuild ? frontendDist : "not built"}`);
+      console.log(`🔒 Security: Enhanced`);
+      console.log(`🔑 Admin Key loaded: ${process.env.ADMIN_KEY ? "Yes" : "No"}`);
+      console.log(`🔐 JWT Secret loaded: ${process.env.JWT_SECRET ? "Yes" : "No"}`);
+      console.log(`💳 Razorpay Key ID loaded: ${process.env.RAZORPAY_KEY_ID ? "Yes" : "No"}`);
     });
-  } catch (error) {
-    console.error("❌ HTTPS setup failed:", error.message);
-    process.exit(1);
   }
-} else {
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`🔮 Server running on port ${PORT}`);
-    console.log(`✨ Environment: ${process.env.NODE_ENV}`);
-    console.log(`🖥️  Frontend: ${hasFrontendBuild ? frontendDist : "not built"}`);
-    console.log(`🔒 Security: Enhanced`);
-    console.log(`🔑 Admin Key loaded: ${process.env.ADMIN_KEY ? "Yes" : "No"}`);
-    console.log(`🔐 JWT Secret loaded: ${process.env.JWT_SECRET ? "Yes" : "No"}`);
-    console.log(`💳 Razorpay Key ID loaded: ${process.env.RAZORPAY_KEY_ID ? "Yes" : "No"}`);
-  });
-}
+};
+
+start().catch((error) => {
+  console.error("❌ Failed to start server:", error.message);
+  process.exit(1);
+});
