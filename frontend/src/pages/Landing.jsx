@@ -54,11 +54,12 @@ const Landing = () => {
     fetchServices()
   }, [language])
 
-  // Smart polling - only when NOT booking
+  // Smart polling - only when NOT booking, tab visible, and no update already pending
   useEffect(() => {
-    if (isBooking) return // Don't poll during booking
+    if (isBooking || updateAvailable) return
 
     const checkForUpdates = async () => {
+      if (document.hidden) return
       try {
         const [pricingRes, contentRes] = await Promise.all([
           axios.get('/api/pricing'),
@@ -87,9 +88,9 @@ const Landing = () => {
       }
     }
 
-    const interval = setInterval(checkForUpdates, 10000) // Check every 10 seconds
+    const interval = setInterval(checkForUpdates, 60000) // Check every minute
     return () => clearInterval(interval)
-  }, [isBooking, pricing])
+  }, [isBooking, pricing, updateAvailable])
 
   const handleRefresh = () => {
     window.location.reload()

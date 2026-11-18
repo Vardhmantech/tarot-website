@@ -89,7 +89,7 @@ app.use((req, res, next) => {
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 500,
+  max: 1000,
   message: { success: false, message: "Too many requests from this IP, please try again later." },
   standardHeaders: true,
   legacyHeaders: false,
@@ -177,6 +177,8 @@ if (hasFrontendBuild) {
       setHeaders: (res, filePath) => {
         if (filePath.endsWith(".html")) {
           res.setHeader("Cache-Control", "no-store, must-revalidate");
+          res.setHeader("CDN-Cache-Control", "no-store");
+          res.setHeader("Surrogate-Control", "no-store");
         }
       }
     })
@@ -185,6 +187,8 @@ if (hasFrontendBuild) {
   app.get("*", (req, res, next) => {
     if (req.method !== "GET" || path.extname(req.path)) return next();
     res.setHeader("Cache-Control", "no-store, must-revalidate");
+    res.setHeader("CDN-Cache-Control", "no-store");
+    res.setHeader("Surrogate-Control", "no-store");
     res.sendFile(path.join(frontendDist, "index.html"));
   });
 } else {
