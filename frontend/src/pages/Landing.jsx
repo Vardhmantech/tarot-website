@@ -308,6 +308,21 @@ const Landing = () => {
           <p className="text-gray-300 text-sm leading-relaxed mb-6 max-w-xs mx-auto lg:text-xl lg:max-w-3xl lg:mb-8">
             {content['hero-description'] || t('heroDescription')}
           </p>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 max-w-md mx-auto">
+            <button
+              onClick={() => document.getElementById('book')?.scrollIntoView({ behavior: 'smooth' })}
+              className="w-full sm:w-auto px-7 py-3 bg-gradient-to-r from-[#f5d000] to-[#18c2a4] text-deep-purple font-bold rounded-full shadow-lg shadow-gold/20 hover:shadow-gold/30 hover:scale-[1.02] transition-all duration-300"
+            >
+              {t('bookNowBtn')}
+            </button>
+            <button
+              onClick={() => document.getElementById('services')?.scrollIntoView({ behavior: 'smooth' })}
+              className="w-full sm:w-auto px-7 py-3 border border-gold/40 text-gold font-semibold rounded-full hover:bg-gold/10 hover:border-gold/60 transition-all duration-300"
+            >
+              {t('navServices')}
+            </button>
+          </div>
         </motion.div>
       </section>
 
@@ -333,6 +348,9 @@ const Landing = () => {
             transition={{ duration: 0.6, delay: 0.1 }}
             className="backdrop-blur-xl bg-gradient-to-br from-deep-purple/30 to-midnight-blue/20 border border-gold/30 rounded-2xl p-3 shadow-lg shadow-gold/10 mb-6 lg:max-w-4xl lg:mx-auto lg:p-6"
           >
+            <p className="text-gold text-[10px] uppercase tracking-[0.2em] font-semibold text-center mb-2 lg:text-xs lg:mb-3">
+              {t('allSessionsInclude')}
+            </p>
             <div className="flex items-center justify-around text-xs lg:text-base lg:gap-12">
               <div className="flex items-center gap-1 lg:gap-2">
                 <span className="text-gold lg:text-xl">✓</span>

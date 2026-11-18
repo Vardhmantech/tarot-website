@@ -9,12 +9,14 @@ const BookingForm = ({ onSuccess, pricing }) => {
   const [step, setStep] = useState(1)
   const [slots, setSlots] = useState([])
   const [loadingSlots, setLoadingSlots] = useState(false)
+  const [slotsError, setSlotsError] = useState('')
+  const [slotsReloadKey, setSlotsReloadKey] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState('')
   const [bookingDetails, setBookingDetails] = useState(null)
   const [existingBooking, setExistingBooking] = useState(null)
 
-  const { register, handleSubmit, watch, formState: { errors }, reset } = useForm({
+  const { register, handleSubmit, watch, setValue, formState: { errors }, reset } = useForm({
     mode: 'onSubmit',
     defaultValues: {
       name: '',
@@ -32,30 +34,44 @@ const BookingForm = ({ onSuccess, pricing }) => {
   const selectedService = watch('service')
 
   useEffect(() => {
+    let cancelled = false
+
     if (!selectedDate) {
       setSlots([])
-      return
+      setSlotsError('')
+      setLoadingSlots(false)
+      return () => { cancelled = true }
     }
 
     const fetchSlots = async () => {
       setLoadingSlots(true)
       setSlots([])
+      setSlotsError('')
       try {
-        console.log('Fetching slots for date:', selectedDate)
         const res = await api.get(`/api/bookings/available-slots/${selectedDate}`)
-        const availableSlots = res.data.data?.availableSlots || []
-        console.log('Available slots:', availableSlots)
-        setSlots(availableSlots)
+        if (!cancelled) setSlots(res.data.data?.availableSlots || [])
       } catch (err) {
-        console.error('Slot fetch error:', err)
-        setSlots([])
+        if (!cancelled) {
+          console.error('Slot fetch error:', err.response?.data || err.message)
+          setSlots([])
+          setSlotsError(
+            err.response?.status === 429
+              ? 'Too many requests. Please wait a few minutes and retry.'
+              : 'Could not load available times. Please check your connection and retry.'
+          )
+        }
       } finally {
-        setLoadingSlots(false)
+        if (!cancelled) setLoadingSlots(false)
       }
     }
 
     fetchSlots()
-  }, [selectedDate])
+    return () => { cancelled = true }
+  }, [selectedDate, slotsReloadKey])
+
+  useEffect(() => {
+    setValue('time', '')
+  }, [selectedDate, setValue])
 
   const onSubmit = async (data) => {
     setSubmitting(true)
@@ -88,7 +104,7 @@ const BookingForm = ({ onSuccess, pricing }) => {
             setStep(1)
           },
           onFailure: (error) => {
-            setMessage(error.description || 'Payment failed. Please try again.')
+            setMessage(error.description || error.message || 'Payment failed. Please try again.')
           }
         })
       } else {
@@ -149,7 +165,7 @@ const BookingForm = ({ onSuccess, pricing }) => {
             setStep(1)
           },
           onFailure: (error) => {
-            setMessage(error.description || 'Payment failed. Please try again.')
+            setMessage(error.description || error.message || 'Payment failed. Please try again.')
           }
         })
       }
@@ -402,6 +418,18 @@ Session Type: ${bookingDetails.sessionType}${bookingDetails.paymentId ? `\nPayme
               ))}
             </select>
             {errors.time && <p className="text-red-400 text-xs lg:text-sm mt-1">{errors.time.message}</p>}
+            {slotsError && (
+              <div className="mt-2 p-3 bg-red-500/10 border border-red-400/30 rounded-xl text-xs text-red-300 flex items-center justify-between gap-3" role="alert">
+                <span>{slotsError}</span>
+                <button
+                  type="button"
+                  onClick={() => setSlotsReloadKey(key => key + 1)}
+                  className="shrink-0 px-3 py-1.5 bg-gold text-cosmic-blue font-semibold rounded-lg hover:bg-yellow-300 transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-2 lg:col-span-2">

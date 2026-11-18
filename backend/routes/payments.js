@@ -75,6 +75,14 @@ router.post('/create-order', paymentLimiter, validateCreateOrder, async (req, re
         data: { orderId: order.id, amount: order.amount, currency: order.currency, keyId: process.env.RAZORPAY_KEY_ID, prefill: customerDetails || {}, notes: options.notes }
       });
     } catch (razorpayError) {
+      console.error('❌ Razorpay order creation failed:', {
+        status: razorpayError.statusCode,
+        code: razorpayError.error?.code,
+        description: razorpayError.error?.description || razorpayError.message
+      });
+      if (razorpayError.statusCode === 401) {
+        console.error('⚠️ Razorpay authentication failed: RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must belong to the same account and the same test/live mode.');
+      }
       if (bookingId) await pool.execute('UPDATE bookings SET payment_status = ? WHERE id = ?', ['failed', bookingId]);
       return res.status(500).json({
         success: false,

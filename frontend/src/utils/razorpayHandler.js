@@ -33,7 +33,7 @@ export const initiateRazorpayPayment = (orderData, options = {}) => {
       currency: currency,
       name: options.businessName || 'Spiritual Services',
       description: options.description || 'Payment for services',
-      image: options.logo || '/logo.png', // Your logo URL
+      image: options.logo || '/images/logo.png', // Your logo URL
       order_id: orderId, // CRITICAL: Order ID from backend
       
       // Pre-fill customer details
