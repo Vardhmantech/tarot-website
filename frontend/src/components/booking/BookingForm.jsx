@@ -125,8 +125,10 @@ const BookingForm = ({ onSuccess, pricing }) => {
       // Handle duplicate booking
       if (err.response?.status === 409 && err.response?.data?.message === 'existing_booking') {
         setExistingBooking(err.response.data.existingBooking)
+      } else if (err.response?.data?.message) {
+        setMessage(err.response.data.message)
       } else {
-        setMessage(err.response?.data?.message || 'Booking failed')
+        setMessage(err.message || 'Booking failed. Please try again.')
       }
     } finally {
       setSubmitting(false)
@@ -170,7 +172,7 @@ const BookingForm = ({ onSuccess, pricing }) => {
         })
       }
     } catch (err) {
-      setMessage(err.response?.data?.message || 'Booking failed')
+      setMessage(err.response?.data?.message || err.message || 'Booking failed. Please try again.')
     } finally {
       setSubmitting(false)
     }
