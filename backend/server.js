@@ -176,7 +176,7 @@ if (hasFrontendBuild) {
       maxAge: "7d",
       setHeaders: (res, filePath) => {
         if (filePath.endsWith(".html")) {
-          res.setHeader("Cache-Control", "no-cache");
+          res.setHeader("Cache-Control", "no-store, must-revalidate");
         }
       }
     })
@@ -184,7 +184,7 @@ if (hasFrontendBuild) {
 
   app.get("*", (req, res, next) => {
     if (req.method !== "GET" || path.extname(req.path)) return next();
-    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Cache-Control", "no-store, must-revalidate");
     res.sendFile(path.join(frontendDist, "index.html"));
   });
 } else {

@@ -171,6 +171,17 @@ Do not edit files inside `public_html` or `hbuilds/` manually; they are replaced
 - Check `DB_HOST=localhost` when the app and database are on the same Hostinger server.
 - Check the prefixed database/user names shown in hPanel.
 
+**`MySQL connection error: read ECONNRESET`**
+- Usually means the app is connecting to the remote `srvXXXX.hstgr.io` host instead of the local MySQL server, or an idle pooled connection was closed.
+- Set `DB_HOST=localhost` in hPanel → Web App → Environment Variables and restart.
+- The pool enables TCP keep-alive and reports database outages as `503` with a retry message instead of `500`.
+
+**Browser still calls an old `*.hostingersite.com` API URL**
+- The browser is running a cached JavaScript bundle from before the single-domain change. The API must always be same-origin (`https://krushnalaya.in/api/...`).
+- Hard refresh (`Ctrl+F5`) or open the site in a private window, then confirm the console loads the current `index-<hash>.js`.
+- Builds must not define `VITE_API_URL`; leave it empty/unset in hPanel so the frontend uses relative URLs.
+- `index.html` is served with `Cache-Control: no-store, must-revalidate`; hashed assets stay cached for 7 days.
+
 **Site loads but API returns 404**
 - Confirm the entry file is `backend/server.js`.
 - Confirm `/api/health` works before testing the frontend.

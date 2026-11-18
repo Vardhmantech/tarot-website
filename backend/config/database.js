@@ -13,6 +13,12 @@ const connectDB = async () => {
       connectionLimit: 10,
       queueLimit: 0,
       charset: 'utf8mb4',
+      // Shared MySQL hosts close idle sockets; keep them alive so queries do not fail with ECONNRESET.
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 10000,
+      connectTimeout: 20000,
+      maxIdle: 5,
+      idleTimeout: 60000,
       // Return DATE columns as `YYYY-MM-DD` instead of timezone-shifted Date objects.
       dateStrings: ['DATE']
     });
