@@ -84,10 +84,13 @@ router.post('/create-order', paymentLimiter, validateCreateOrder, async (req, re
         console.error('⚠️ Razorpay authentication failed: RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must belong to the same account and the same test/live mode.');
       }
       if (bookingId) await pool.execute('UPDATE bookings SET payment_status = ? WHERE id = ?', ['failed', bookingId]);
+      const isAuthError = razorpayError.statusCode === 401 || razorpayError.error?.code === 'BAD_REQUEST_ERROR';
       return res.status(500).json({
         success: false,
-        message: 'Unable to create payment order. Please try again.',
-        ...(process.env.NODE_ENV === 'development' && { details: razorpayError.message })
+        message: isAuthError
+          ? 'Payment gateway is not configured correctly. Please contact us to complete your booking.'
+          : 'Unable to create payment order. Please try again.',
+        ...(process.env.NODE_ENV === 'development' && { details: razorpayError.error?.description || razorpayError.message })
       });
     }
   } catch (error) {
