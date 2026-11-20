@@ -43,6 +43,43 @@ const validateVerifyPayment = [
   body('bookingId').optional().isInt().withMessage('Invalid booking ID format')
 ]
 
+// Admin-only credential check. Never returns the secret itself.
+router.get('/diagnostic', async (req, res) => {
+  const adminKey = req.headers['x-admin-key'];
+  if (!adminKey || adminKey !== process.env.ADMIN_KEY) {
+    return res.status(401).json({ success: false, message: 'Admin key required' });
+  }
+
+  const keyId = process.env.RAZORPAY_KEY_ID || '';
+  const secret = process.env.RAZORPAY_KEY_SECRET || '';
+  const result = {
+    keyIdPrefix: keyId.slice(0, 12),
+    keyIdLength: keyId.length,
+    secretLength: secret.length,
+    secretHasWhitespace: secret !== secret.trim(),
+    mode: keyId.startsWith('rzp_live_') ? 'live' : keyId.startsWith('rzp_test_') ? 'test' : 'unknown',
+    webhookSecretLoaded: Boolean(process.env.RAZORPAY_WEBHOOK_SECRET)
+  };
+
+  try {
+    const razorpay = getRazorpayInstance();
+    const order = await razorpay.orders.create({
+      amount: 100,
+      currency: 'INR',
+      receipt: `diag_${Date.now()}`
+    });
+    result.razorpay = 'ok';
+    result.orderId = order.id;
+  } catch (error) {
+    result.razorpay = 'error';
+    result.statusCode = error.statusCode;
+    result.code = error.error?.code;
+    result.description = error.error?.description || error.message;
+  }
+
+  res.status(200).json({ success: true, data: result });
+});
+
 router.post('/create-order', paymentLimiter, validateCreateOrder, async (req, res, next) => {
   try {
     const errors = validationResult(req);
